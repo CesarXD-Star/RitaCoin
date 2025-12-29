@@ -1,28 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>RitaCoin</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NomyToken / RitaCoin</title>
+
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#0f1220; color:#eaeaf0; }
+    header { padding:16px 24px; background:#14183a; display:flex; justify-content:space-between; align-items:center; }
+    button { background:#5b6cff; border:none; color:white; padding:10px 14px; border-radius:6px; cursor:pointer; }
+    button.secondary { background:#2a2f6b; }
+    .hidden { display:none; }
+    .container { padding:24px; }
+    .card { background:#171b45; border-radius:10px; padding:16px; margin-bottom:16px; }
+    .tabs { display:flex; gap:12px; margin-bottom:16px; }
+    .wallet { max-height:220px; overflow-y:auto; }
+    .token { display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #262b66; }
+    .muted { color:#9aa0ff; }
+    input, select { width:100%; padding:10px; border-radius:6px; border:1px solid #2a2f6b; background:#0f1220; color:white; }
+  </style>
 </head>
 <body>
 
-<h1>RitaCoin</h1>
-<p>Peer-to-peer digital currency.</p>
+<header>
+  <strong>NomyToken</strong>
+  <div>
+    <button id="loginGoogle">Login with Google</button>
+    <button id="loginGithub" class="secondary">Login with GitHub</button>
+    <button id="logout" class="hidden">Logout</button>
+  </div>
+</header>
 
-<h2>What is RitaCoin?</h2>
-<p>
-RitaCoin is an experimental open-source cryptocurrency designed
-to be simple, lightweight, and accessible through CPU mining.
-</p>
+<div class="container">
 
-<h2>Downloads</h2>
-<p>Wallet and node software coming soon.</p>
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
 
-<h2>Whitepaper</h2>
-<p>Whitepaper coming soon.</p>
+    <div class="tabs">
+      <button onclick="showTab('wallet')">Wallet</button>
+      <button onclick="showTab('mining')">Mining</button>
+      <button onclick="showTab('exchange')">Exchange</button>
+    </div>
 
-<h2>Community</h2>
-<p>Email: ritacoin@zohomail.com</p>
+    <!-- WALLET -->
+    <div id="wallet" class="card">
+      <h2>Main Wallet</h2>
+      <p class="muted">Wallet auto-created on register</p>
+
+      <div class="wallet">
+        <div class="token">
+          <span>RitaCoin Balance</span>
+          <strong id="balance">0 RTC</strong>
+        </div>
+        <div class="token">
+          <span>Wallet Address</span>
+          <strong id="walletAddress">—</strong>
+        </div>
+        <div class="token">
+          <span>RitaCoin Price</span>
+          <strong>$<span id="price">1.00</span> USD</strong>
+        </div>
+        <div style="padding:16px" class="muted">
+          Add your token for <strong>$1 USD</strong><br />
+          Contact: <strong>email@example.com</strong><br />
+          Payment: <strong>Crypto only</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- MINING -->
+    <div id="mining" class="card hidden">
+      <h2>Mining (Simulated)</h2>
+      <p class="muted">Buy hash power using RitaCoin (price adapts)</p>
+
+      <label>Mining Level</label>
+      <select id="miningLevel">
+        <option value="1">Level 1 – $1 USD</option>
+        <option value="2">Level 2 – $5 USD</option>
+        <option value="3">Level 3 – $10 USD</option>
+        <option value="4">Level 4 – $15 USD</option>
+        <option value="5">Level 5 – $20 USD</option>
+      </select>
+
+      <button style="margin-top:12px" onclick="buyMining()">Buy Mining Power</button>
+      <p id="miningResult" class="muted"></p>
+    </div>
+
+    <!-- EXCHANGE -->
+    <div id="exchange" class="card hidden">
+      <h2>Exchange</h2>
+      <p class="muted">Convert RitaCoin to USD (web simulation)</p>
+
+      <label>RitaCoin amount</label>
+      <input id="ritaAmount" placeholder="e.g. 10" />
+
+      <button style="margin-top:12px" onclick="convertToUSD()">Convert</button>
+      <p id="exchangeResult" class="muted"></p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  const googleProvider = new firebase.auth.GoogleAuthProvider();
+  const githubProvider = new firebase.auth.GithubAuthProvider();
+
+  document.getElementById('loginGoogle').onclick = () => auth.signInWithPopup(googleProvider);
+  document.getElementById('loginGithub').onclick = () => auth.signInWithPopup(githubProvider);
+  document.getElementById('logout').onclick = () => auth.signOut();
+
+  function randomPrice(oldPrice) {
+    const change = (Math.random() * 0.2 - 0.1); // -10% to +10%
+    return Math.max(0.1, (oldPrice + oldPrice * change));
+  }
+
+  auth.onAuthStateChanged(user => {
+    const dashboard = document.getElementById('dashboard');
+
+    document.getElementById('loginGoogle').classList.toggle('hidden', !!user);
+    document.getElementById('loginGithub').classList.toggle('hidden', !!user);
+    document.getElementById('logout').classList.toggle('hidden', !user);
+
+    if (user) {
+      dashboard.classList.remove('hidden');
+
+      let wallet = localStorage.getItem('wallet_' + user.uid);
+      let balance = parseFloat(localStorage.getItem('balance_' + user.uid));
+      let price = parseFloat(localStorage.getItem('price')) || 1.0;
+
+      if (!wallet) {
+        wallet = 'RTC-' + crypto.randomUUID().replaceAll('-', '').slice(0, 32);
+        balance = 0;
+        localStorage.setItem('wallet_' + user.uid, wallet);
+        localStorage.setItem('balance_' + user.uid, balance);
+      }
+
+      price = randomPrice(price);
+      localStorage.setItem('price', price.toFixed(2));
+
+      document.getElementById('walletAddress').innerText = wallet;
+      document.getElementById('balance').innerText = balance.toFixed(4) + ' RTC';
+      document.getElementById('price').innerText = price.toFixed(2);
+
+    } else {
+      dashboard.classList.add('hidden');
+    }
+  });
+
+  function showTab(tab) {
+    if (!auth.currentUser) return;
+    ['wallet','mining','exchange'].forEach(t => document.getElementById(t).classList.add('hidden'));
+    document.getElementById(tab).classList.remove('hidden');
+  }
+
+  function buyMining() {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const levelPrices = { 1:1, 2:5, 3:10, 4:15, 5:20 };
+    const level = document.getElementById('miningLevel').value;
+    const usdCost = levelPrices[level];
+    const price = parseFloat(localStorage.getItem('price'));
+    const rtcCost = usdCost / price;
+
+    let balance = parseFloat(localStorage.getItem('balance_' + user.uid));
+
+    if (balance < rtcCost) {
+      document.getElementById('miningResult').innerText = 'Not enough RitaCoin';
+      return;
+    }
+
+    balance -= rtcCost;
+    localStorage.setItem('balance_' + user.uid, balance);
+    document.getElementById('balance').innerText = balance.toFixed(4) + ' RTC';
+
+    document.getElementById('miningResult').innerText = `Mining level ${level} purchased for ${rtcCost.toFixed(4)} RTC`;
+  }
+
+  function convertToUSD() {
+    const amount = parseFloat(document.getElementById('ritaAmount').value);
+    if (isNaN(amount)) return;
+
+    const price = parseFloat(localStorage.getItem('price'));
+    const usd = amount * price;
+
+    document.getElementById('exchangeResult').innerText = `${amount} RTC ≈ $${usd.toFixed(2)} USD`;
+  }
+</script>
 
 </body>
 </html>
